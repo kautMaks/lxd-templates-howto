@@ -1,0 +1,298 @@
+# Host #
+
+## Clean destination folder:
+rm -rf /var/lib/machines/ascii
+
+## Download debootstrap script:
+wget -O /usr/share/debootstrap/scripts/ascii https://git.devuan.org/devuan-packages/debootstrap/raw/master/scripts/ceres
+
+## Use openrc init system:
+sed -i 's/devuan_required="devuan-keyring devuan-baseconf sysvinit-core"/devuan_required="devuan-keyring devuan-baseconf openrc"/' /usr/share/debootstrap/scripts/ascii
+
+## Bootstrap packages:
+debootstrap --arch=amd64 --variant=minbase --components=main,contrib --include=udev,dbus,apt-transport-https,ifupdown,iproute2,inetutils-ping,wget,neovim,locales,tzdata,man-db,manpages ascii /var/lib/machines/ascii http://pkgmaster.devuan.org/merged/
+
+## Change root password:
+chroot /var/lib/machines/ascii /usr/bin/passwd root
+
+## Enter CT:
+chroot /var/lib/machines/ascii
+
+# Inside CT #
+
+## Update APT source list:
+cat <<EOF > /etc/apt/sources.list
+# Stable
+deb http://deb.devuan.org/merged ascii          main contrib
+deb http://deb.devuan.org/merged ascii-updates  main contrib
+deb http://deb.devuan.org/merged ascii-security main contrib
+EOF
+
+## Exclude docs from package install:
+cat <<EOF > /etc/dpkg/dpkg.cfg.d/01_nodoc
+path-exclude /usr/share/doc/*
+path-exclude /usr/share/doc-base/*
+# we need to keep copyright files for legal reasons
+path-include /usr/share/doc/*/copyright
+path-exclude /usr/share/groff/*
+path-exclude /usr/share/info/*
+path-exclude /usr/share/man/*
+path-include /usr/share/man/man*
+path-exclude /usr/share/lintian/*
+path-exclude /usr/share/linda/*
+EOF
+
+## Remove installed docs:
+find /usr/share/doc -depth -type f ! -name copyright | xargs rm || true
+find /usr/share/doc -empty | xargs rmdir || true
+find /usr/share/man -type d ! -name "man*" | xargs rm -rf || true
+rm -rf /usr/share/groff /usr/share/info /usr/share/lintian /usr/share/linda /usr/share/doc-base
+
+## Exclude locales:
+cat <<EOF > /etc/dpkg/dpkg.cfg.d/02_nolocales
+path-exclude /usr/share/locale/*
+path-include /usr/share/locale/en*
+path-include /usr/share/locale/ru*
+path-include /usr/share/locale/uk*
+EOF
+
+## Set custom inittab to work via openrc:
+##  https://github.com/OpenRC/openrc/blob/master/support/sysvinit/inittab
+cat <<EOF > /etc/inittab
+# /etc/inittab:  This file describes how the INIT process should set up
+#                the system in a certain run-level.
+
+# Default runlevel.
+id:3:initdefault:
+
+# System initialization, mount local filesystems, etc.
+si::sysinit:/sbin/openrc sysinit
+
+# Further system initialization, brings up the boot runlevel.
+rc::bootwait:/sbin/openrc boot
+
+# SIGPWR needed for LXD
+pf::powerfail:/sbin/halt -dhnp
+
+l0:0:wait:/sbin/openrc shutdown
+l0s:0:wait:/sbin/halt -dhip
+l1:S1:wait:/sbin/openrc single
+l2:2:wait:/sbin/openrc nonetwork
+l3:3:wait:/sbin/openrc default
+l4:4:wait:/sbin/openrc default
+l5:5:wait:/sbin/openrc default
+l6:6:wait:/sbin/openrc reboot
+l6r:6:wait:/sbin/reboot -d
+#z6:6:respawn:/sbin/sulogin
+
+# new-style single-user
+su0:S:wait:/sbin/openrc single
+su1:S:wait:/sbin/sulogin
+
+# TERMINALS
+c1:12345:respawn:/sbin/agetty 38400 tty1 linux
+c2:2345:respawn:/sbin/agetty 38400 tty2 linux
+c3:2345:respawn:/sbin/agetty 38400 tty3 linux
+c4:2345:respawn:/sbin/agetty 38400 tty4 linux
+c5:2345:respawn:/sbin/agetty 38400 tty5 linux
+c6:2345:respawn:/sbin/agetty 38400 tty6 linux
+
+# SERIAL CONSOLES
+#s0:12345:respawn:/sbin/agetty 9600 ttyS0 vt100
+#s1:12345:respawn:/sbin/agetty 9600 ttyS1 vt100
+
+# What to do at the "Three Finger Salute".
+ca:12345:ctrlaltdel:/sbin/shutdown -r now
+EOF
+
+## FIX add-apt-repository:
+mkdir -p /usr/share/python-apt/templates
+
+cat <<EOF > /usr/share/python-apt/templates/Devuan.info
+Suite: ascii
+RepositoryType: deb
+BaseURI: http://devuan.org
+MatchURI: ((http|ftp)[0-9]*\.([a-z]*\.){0,1}|)devuan\.org
+MirrorsFile: Devuan.mirrors
+Description: Devuan GNU/Linux 'ASCII'
+Component: main
+CompDescription: Officially supported
+Component: contrib
+CompDescription: DFSG-compatible Software with Non-Free Dependencies
+Component: non-free
+CompDescription: Non-DFSG-compatible Software
+
+Suite: ascii/updates
+RepositoryType: deb
+BaseURI: http://pkgmaster.devuan.org/merged
+MatchURI: pkgmaster\.devuan\.org
+ParentSuite: ascii
+Description: Security updates
+
+Suite: ascii-updates
+RepositoryType: deb
+ParentSuite: ascii
+Description: Recommended updates
+
+Suite: ascii-proposed-updates
+RepositoryType: deb
+ParentSuite: ascii
+Description: Proposed updates
+
+Suite: jessie
+RepositoryType: deb
+BaseURI: http://devuan.org
+MatchURI: ((http|ftp)[0-9]*\.([a-z]*\.){0,1}|)devuan\.org
+MirrorsFile: Devuan.mirrors
+Description: Devuan GNU/Linux 'Jessie'
+Component: main
+CompDescription: Officially supported
+Component: contrib
+CompDescription: DFSG-compatible Software with Non-Free Dependencies
+Component: non-free
+CompDescription: Non-DFSG-compatible Software
+
+Suite: jessie/updates
+RepositoryType: deb
+BaseURI: http://pkgmaster.devuan.org/merged
+MatchURI: pkgmaster\.devuan\.org
+ParentSuite: jessie
+Description: Security updates
+
+Suite: jessie-updates
+RepositoryType: deb
+ParentSuite: jessie
+Description: Recommended updates
+
+Suite: jessie-proposed-updates
+RepositoryType: deb
+ParentSuite: jessie
+Description: Proposed updates
+
+Suite: stable
+RepositoryType: deb
+BaseURI: http://devuan.org
+MatchURI: ((http|ftp)[0-9]*\.([a-z]*\.){0,1}|)devuan\.org
+MirrorsFile: Devuan.mirrors
+Description: Devuan current stable release
+Component: main
+CompDescription: Officially supported
+Component: contrib
+CompDescription: DFSG-compatible Software with Non-Free Dependencies
+Component: non-free
+CompDescription: Non-DFSG-compatible Software
+
+Suite: testing
+RepositoryType: deb
+BaseURI: http://devuan.org
+MatchURI: ((http|ftp)[0-9]*\.([a-z]*\.){0,1}|)devuan\.org
+MirrorsFile: Devuan.mirrors
+Description: Devuan testing
+Component: main
+CompDescription: Officially supported
+Component: contrib
+CompDescription: DFSG-compatible Software with Non-Free Dependencies
+Component: non-free
+CompDescription: Non-DFSG-compatible Software
+
+Suite: ceres
+RepositoryType: deb
+BaseURI: http://devuan.org
+MatchURI: ((http|ftp)[0-9]*\.([a-z]*\.){0,1}|)devuan\.org
+MirrorsFile: Devuan.mirrors
+Description: Devuan GNU/Linux 'Ceres' (unstable)
+Component: main
+CompDescription: Officially supported
+Component: contrib
+CompDescription: DFSG-compatible Software with Non-Free Dependencies
+Component: non-free
+CompDescription: Non-DFSG-compatible Software
+
+Suite: unstable
+RepositoryType: deb
+BaseURI: http://devuan.org
+MatchURI: ((http|ftp)[0-9]*\.([a-z]*\.){0,1}|)devuan\.org
+MirrorsFile: Devuan.mirrors
+Description: Devuan GNU/Linux 'Ceres' (unstable)
+Component: main
+CompDescription: Officially supported
+Component: contrib
+CompDescription: DFSG-compatible Software with Non-Free Dependencies
+Component: non-free
+CompDescription: Non-DFSG-compatible Software
+EOF
+
+cat <<EOF > /usr/share/python-apt/templates/Devuan.mirrors
+http://pkgmaster.devuan.org
+http://deb.devuan.org
+EOF
+
+## Remove installed locales:
+find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en*' ! -name 'ru*' !  -name 'uk*' | xargs rm -r
+
+## Set timezone:
+cp -vf /usr/share/zoneinfo/Europe/Kiev /etc/localtime
+echo Europe/Kiev | tee /etc/timezone
+
+## Set hostname:
+echo ascii | tee /etc/hostname
+
+## Configure locales:
+cat <<EOF > /etc/locale.gen
+en_US.UTF-8 UTF-8
+ru_RU.UTF-8 UTF-8
+ru_UA.UTF-8 UTF-8
+uk_UA.UTF-8 UTF-8
+EOF
+
+## Generate locales:
+ln -s /etc/locale.alias /usr/share/locale/locale.alias
+locale-gen
+
+## Update packages:
+apt-get update ; apt-get -V dist-upgrade
+
+## Clean cache:
+find /var/cache -maxdepth 1 -mindepth 1 | xargs rm -rf
+
+## Clean logs:
+find /var/log -maxdepth 1 -mindepth 1 | xargs rm -rf
+
+## Clean root:
+find /root -maxdepth 1 -mindepth 1 ! -name '.bashrc' ! -name '.profile' | xargs rm -rf
+
+## Exit chroot:
+exit
+
+# Host #
+
+## Post setup clean:
+rm -rf /var/lib/machines/ascii/debootstrap
+rm -rf /var/lib/machines/ascii/root/.bash_history
+
+# ToDo: clean /dev, /sys, etc ...
+
+## Compress custom rootfs:
+tar -cvzf rootfs.tar.gz -C /var/lib/machines/ascii .
+
+## Create metadata file for LXD:
+### To get current date in Unix time, use `date +%s` command
+cat <<EOF > metadata.yaml
+architecture: "x86_64"
+creation_date: 1559913813
+properties:
+architecture: "x86_64"
+description: "Devuan ASCII minified version"
+os: "devuan"
+release: "ascii"
+EOF
+
+## Create metadata tarball:
+tar -cvzf metadata.tar.gz metadata.yaml
+
+## Import LXD image to image store:
+lxc image import metadata.tar.gz rootfs.tar.gz --alias ascii-slim
+
+## Start LXD CT from new template:
+lxc launch ascii-slim ascii
+lxc exec ascii bash

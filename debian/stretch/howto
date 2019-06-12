@@ -101,6 +101,7 @@ uk_UA.UTF-8 UTF-8
 EOF
 
 ## Generate locales:
+ln -s /etc/locale.alias /usr/share/locale/locale.alias
 locale-gen
 
 ## Update pacakges:
