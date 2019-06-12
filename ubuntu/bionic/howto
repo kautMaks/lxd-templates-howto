@@ -36,7 +36,7 @@ systemctl mask fstrim.timer
 systemctl mask motd-news.timer
 systemctl mask motd-news.service
 
-## Remove additional system variables
+## Remove additional system variables:
 rm /etc/sysctl.d/10-*
 rm /usr/lib/sysctl.d/50-default.conf
 
@@ -111,7 +111,7 @@ find /var/log -maxdepth 1 -mindepth 1 | xargs rm -rf
 ## Clean root:
 find /root -maxdepth 1 -mindepth 1 ! -name '.bashrc' ! -name '.profile' | xargs rm -rf
 
-## Poweroff
+## Poweroff:
 poweroff
 
 # Host #
@@ -150,4 +150,3 @@ systemd-nspawn --machine=bionic --boot --private-users=pick --private-users-chow
 
 ## Start using systemd-nspawn with custom UID(multiples of 2^16) shift
 systemd-nspawn --machine=bionic --boot --private-users=131072 --private-users-chown --register=true --directory=/var/lib/machines/bionic
-

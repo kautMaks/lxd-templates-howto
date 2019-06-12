@@ -4,7 +4,7 @@
 rm -rf /var/lib/machines/stretch
 
 ## Bootstrap packages:
-debootstrap --arch=amd64 --variant=minbase --components=main,universe --include=systemd-sysv,udev,dbus,apt-transport-https,ifupdown,iproute2,inetutils-ping,wget,neovim,locales,tzdata,man-db,manpages stretch /var/lib/machines/stretch http://deb.debian.org/debian
+debootstrap --arch=amd64 --variant=minbase --components=main,contrib --include=systemd-sysv,udev,dbus,apt-transport-https,ifupdown,iproute2,inetutils-ping,wget,neovim,locales,tzdata,man-db,manpages stretch /var/lib/machines/stretch http://deb.debian.org/debian
 
 ## Change root password:
 systemd-nspawn -M stretch -D /var/lib/machines/stretch /usr/bin/passwd root
@@ -36,7 +36,7 @@ systemctl mask fstrim.timer
 systemctl mask motd-news.timer
 systemctl mask motd-news.service
 
-## Remove additional system variables
+## Remove additional system variables:
 rm /etc/sysctl.d/10-*
 rm /usr/lib/sysctl.d/50-default.conf
 
@@ -116,7 +116,7 @@ find /var/log -maxdepth 1 -mindepth 1 | xargs rm -rf
 ## Clean root:
 find /root -maxdepth 1 -mindepth 1 ! -name '.bashrc' ! -name '.profile' | xargs rm -rf
 
-## Poweroff
+## Poweroff:
 poweroff
 
 # Host #
@@ -146,12 +146,12 @@ tar -cvzf metadata.tar.gz metadata.yaml
 ## Import LXD image to image store:
 lxc image import metadata.tar.gz stretch.tar.gz --alias stretch-slim
 
-## Start LXD CT from new template
+## Start LXD CT from new template:
 lxc launch stretch-slim stretch
 lxc exec stretch bash
 
-## Start using systemd-nspawn with random UID:GID shift
+## Start using systemd-nspawn with random UID:GID shift:
 systemd-nspawn --machine=stretch --boot --private-users=pick --private-users-chown --register=true --directory=/var/lib/machines/stretch
 
-## Start using systemd-nspawn with custom UID(multiples of 2^16) shift
+## Start using systemd-nspawn with custom UID(multiples of 2^16) shift:
 systemd-nspawn --machine=stretch --boot --private-users=131072 --private-users-chown --register=true --directory=/var/lib/machines/stretch
