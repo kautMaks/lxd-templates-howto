@@ -1,0 +1,153 @@
+# Host #
+
+## Clean destination folder:
+rm -rf /var/lib/machines/bionic
+
+## Bootstrap packages:
+debootstrap --arch=amd64 --variant=minbase --components=main,universe --include=systemd-sysv,udev,dbus,apt-transport-https,netplan.io,iproute2,inetutils-ping,wget,neovim,locales,tzdata,man-db,manpages bionic /var/lib/machines/bionic http://ua.archive.ubuntu.com/ubuntu/
+
+## Change root password:
+systemd-nspawn -M bionic -D /var/lib/machines/bionic /usr/bin/passwd root
+
+## Start CT:
+systemd-nspawn -M bionic -bD /var/lib/machines/bionic
+
+# Inside CT #
+
+## Disable Systemd units:
+systemctl mask auditd.service
+systemctl mask connman.service
+systemctl mask display-manager.service
+systemctl mask fstrim.service
+systemctl mask NetworkManager.service
+systemctl mask plymouth-quit-wait.service
+systemctl mask ondemand.service
+systemctl mask plymouth-start.service
+systemctl mask syslog.service
+systemctl mask sys-kernel-config.mount
+systemctl mask systemd-fsck-root.service
+systemctl mask systemd-fsckd.service
+systemctl mask systemd-sysusers.service
+systemctl mask systemd-udevd.service
+systemctl mask systemd-vconsole-setup.service
+systemctl mask cryptsetup.target
+systemctl mask graphical.target
+systemctl mask fstrim.timer
+systemctl mask motd-news.timer
+systemctl mask motd-news.service
+
+## Remove additional system variables
+rm /etc/sysctl.d/10-*
+rm /usr/lib/sysctl.d/50-default.conf
+
+## Disable pesky dynamic motd:
+sed -i 's/ENABLED=1/ENABLED=0/' /etc/default/motd-news
+chmod -x /etc/update-motd.d/10-help-text /etc/update-motd.d/50-motd-news
+
+## Update APT source list:
+cat <<EOF > /etc/apt/sources.list
+deb http://ua.archive.ubuntu.com/ubuntu/ bionic main universe multiverse restricted
+deb http://ua.archive.ubuntu.com/ubuntu/ bionic-updates main universe multiverse restricted
+deb http://security.ubuntu.com/ubuntu bionic-security main universe multiverse restricted
+EOF
+
+## Exclude docs from package install:
+cat <<EOF > /etc/dpkg/dpkg.cfg.d/01_nodoc
+path-exclude /usr/share/doc/*
+path-exclude /usr/share/doc-base/*
+# we need to keep copyright files for legal reasons
+path-include /usr/share/doc/*/copyright
+path-exclude /usr/share/groff/*
+path-exclude /usr/share/info/*
+path-exclude /usr/share/man/*
+path-include /usr/share/man/man*
+path-exclude /usr/share/lintian/*
+path-exclude /usr/share/linda/*
+EOF
+
+## Remove installed docs:
+find /usr/share/doc -depth -type f ! -name copyright | xargs rm || true
+find /usr/share/doc -empty | xargs rmdir || true
+find /usr/share/man -type d ! -name "man*" | xargs rm -rf || true
+rm -rf /usr/share/groff /usr/share/info /usr/share/lintian /usr/share/linda /usr/share/doc-base
+
+## Exclude locales:
+cat <<EOF > /etc/dpkg/dpkg.cfg.d/02_nolocales
+path-exclude /usr/share/locale/*
+path-include /usr/share/locale/en*
+path-include /usr/share/locale/ru*
+path-include /usr/share/locale/uk*
+EOF
+
+## Remove installed locales:
+find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en*' ! -name 'ru*' !  -name 'uk*' | xargs rm -r
+
+## Set timezone:
+timedatectl set-timezone Europe/Kiev
+
+## Set hostname:
+hostnamectl set-hostname bionic
+
+## Configure locales:
+cat <<EOF > /etc/locale.gen
+en_US.UTF-8 UTF-8
+ru_RU.UTF-8 UTF-8
+ru_UA.UTF-8 UTF-8
+uk_UA.UTF-8 UTF-8
+EOF
+
+## Generate locales:
+locale-gen
+
+## Update pacakges:
+apt-get update ; apt-get -V dist-upgrade
+
+## Clean cache:
+find /var/cache -maxdepth 1 -mindepth 1 | xargs rm -rf
+
+## Clean logs:
+find /var/log -maxdepth 1 -mindepth 1 | xargs rm -rf
+
+## Clean root:
+find /root -maxdepth 1 -mindepth 1 ! -name '.bashrc' ! -name '.profile' | xargs rm -rf
+
+## Poweroff
+poweroff
+
+# Host #
+
+## Post setup clean:
+rm -rf /var/lib/machines/bionic/debootstrap
+rm -rf /var/lib/machines/bionic/root/.bash_history
+
+## Compress custom rootfs:
+tar -cvzf rootfs.tar.gz -C /var/lib/machines/bionic .
+
+## Create metadata file for LXD:
+### To get current date in Unix time, use `date +%s` command
+cat <<EOF > metadata.yaml
+architecture: "x86_64"
+creation_date: 1549553023 
+properties:
+architecture: "x86_64"
+description: "Ubuntu Bionic minified version"
+os: "ubuntu"
+release: "bionic"
+EOF
+
+## Create metadata tarball:
+tar -cvzf metadata.tar.gz metadata.yaml
+
+## Import LXD image to image store:
+lxc image import metadata.tar.gz rootfs.tar.gz --alias bionic-slim
+
+## Start LXD CT from new template
+lxc launch bionic-slim bionic
+lxc exec bionic bash
+
+## Start using systemd-nspawn with random UID:GID shift
+systemd-nspawn --machine=bionic --boot --private-users=pick --private-users-chown --register=true --directory=/var/lib/machines/bionic
+
+## Start using systemd-nspawn with custom UID(multiples of 2^16) shift
+systemd-nspawn --machine=bionic --boot --private-users=131072 --private-users-chown --register=true --directory=/var/lib/machines/bionic
+

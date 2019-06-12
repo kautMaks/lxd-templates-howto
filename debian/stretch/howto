@@ -1,0 +1,156 @@
+# Host #
+
+## Clean destination folder:
+rm -rf /var/lib/machines/stretch
+
+## Bootstrap packages:
+debootstrap --arch=amd64 --variant=minbase --components=main,universe --include=systemd-sysv,udev,dbus,apt-transport-https,ifupdown,iproute2,inetutils-ping,wget,neovim,locales,tzdata,man-db,manpages stretch /var/lib/machines/stretch http://deb.debian.org/debian
+
+## Change root password:
+systemd-nspawn -M stretch -D /var/lib/machines/stretch /usr/bin/passwd root
+
+## Start CT:
+systemd-nspawn -M stretch -bD /var/lib/machines/stretch
+
+# Inside CT #
+
+## Disable Systemd units:
+systemctl mask auditd.service
+systemctl mask connman.service
+systemctl mask display-manager.service
+systemctl mask fstrim.service
+systemctl mask NetworkManager.service
+systemctl mask plymouth-quit-wait.service
+systemctl mask ondemand.service
+systemctl mask plymouth-start.service
+systemctl mask syslog.service
+systemctl mask sys-kernel-config.mount
+systemctl mask systemd-fsck-root.service
+systemctl mask systemd-fsckd.service
+systemctl mask systemd-sysusers.service
+systemctl mask systemd-udevd.service
+systemctl mask systemd-vconsole-setup.service
+systemctl mask cryptsetup.target
+systemctl mask graphical.target
+systemctl mask fstrim.timer
+systemctl mask motd-news.timer
+systemctl mask motd-news.service
+
+## Remove additional system variables
+rm /etc/sysctl.d/10-*
+rm /usr/lib/sysctl.d/50-default.conf
+
+## Update APT source list:
+cat <<EOF > /etc/apt/sources.list
+# Default
+deb http://mirror.mirohost.net/debian/ stretch main contrib non-free
+deb-src http://mirror.mirohost.net/debian/ stretch main contrib non-free
+deb http://deb.debian.org/debian/ stretch main contrib non-free
+deb-src http://deb.debian.org/debian/ stretch main contrib non-free
+
+# Security
+deb http://mirror.mirohost.net/debian-security/ stretch/updates main contrib non-free
+deb-src http://mirror.mirohost.net/debian-security/ stretch/updates main contrib non-free
+deb http://security.debian.org/ stretch/updates main contrib non-free
+deb-src http://security.debian.org/ stretch/updates main contrib non-free
+EOF
+
+## Exclude docs from package install:
+cat <<EOF > /etc/dpkg/dpkg.cfg.d/01_nodoc
+path-exclude /usr/share/doc/*
+path-exclude /usr/share/doc-base/*
+# we need to keep copyright files for legal reasons
+path-include /usr/share/doc/*/copyright
+path-exclude /usr/share/groff/*
+path-exclude /usr/share/info/*
+path-exclude /usr/share/man/*
+path-include /usr/share/man/man*
+path-exclude /usr/share/lintian/*
+path-exclude /usr/share/linda/*
+EOF
+
+## Remove installed docs:
+find /usr/share/doc -depth -type f ! -name copyright | xargs rm || true
+find /usr/share/doc -empty | xargs rmdir || true
+find /usr/share/man -type d ! -name "man*" | xargs rm -rf || true
+rm -rf /usr/share/groff /usr/share/info /usr/share/lintian /usr/share/linda /usr/share/doc-base
+
+## Exclude locales:
+cat <<EOF > /etc/dpkg/dpkg.cfg.d/02_nolocales
+path-exclude /usr/share/locale/*
+path-include /usr/share/locale/en*
+path-include /usr/share/locale/ru*
+path-include /usr/share/locale/uk*
+EOF
+
+## Remove installed locales:
+find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en*' ! -name 'ru*' !  -name 'uk*' | xargs rm -r
+
+## Set timezone:
+timedatectl set-timezone Europe/Kiev
+
+## Set hostname:
+hostnamectl set-hostname stretch
+
+## Configure locales:
+cat <<EOF > /etc/locale.gen
+en_US.UTF-8 UTF-8
+ru_RU.UTF-8 UTF-8
+ru_UA.UTF-8 UTF-8
+uk_UA.UTF-8 UTF-8
+EOF
+
+## Generate locales:
+locale-gen
+
+## Update pacakges:
+apt-get update ; apt-get -V dist-upgrade
+
+## Clean cache:
+find /var/cache -maxdepth 1 -mindepth 1 | xargs rm -rf
+
+## Clean logs:
+find /var/log -maxdepth 1 -mindepth 1 | xargs rm -rf
+
+## Clean root:
+find /root -maxdepth 1 -mindepth 1 ! -name '.bashrc' ! -name '.profile' | xargs rm -rf
+
+## Poweroff
+poweroff
+
+# Host #
+
+## Post setup clean:
+rm -rf /var/lib/machines/stretch/debootstrap
+rm -rf /var/lib/machines/stretch/root/.bash_history
+
+## Compress custom rootfs:
+tar -cvzf stretch.tar.gz -C /var/lib/machines/stretch .
+
+## Create metadata file for LXD:
+### To get current date in Unix time, use `date +%s` command
+cat <<EOF > metadata.yaml
+architecture: "x86_64"
+creation_date: 1558963812
+properties:
+architecture: "x86_64"
+description: "Debian Stretch minified version"
+os: "debian"
+release: "stretch"
+EOF
+
+## Create metadata tarball:
+tar -cvzf metadata.tar.gz metadata.yaml
+
+## Import LXD image to image store:
+lxc image import metadata.tar.gz stretch.tar.gz --alias stretch-slim
+
+## Start LXD CT from new template
+lxc launch stretch-slim stretch
+lxc exec stretch bash
+
+## Start using systemd-nspawn with random UID:GID shift
+systemd-nspawn --machine=stretch --boot --private-users=pick --private-users-chown --register=true --directory=/var/lib/machines/stretch
+
+## Start using systemd-nspawn with custom UID(multiples of 2^16) shift
+systemd-nspawn --machine=stretch --boot --private-users=131072 --private-users-chown --register=true --directory=/var/lib/machines/stretch
