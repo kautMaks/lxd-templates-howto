@@ -270,7 +270,12 @@ exit
 rm -rf /var/lib/machines/ascii/debootstrap
 rm -rf /var/lib/machines/ascii/root/.bash_history
 
-# ToDo: clean /dev, /sys, etc ...
+## Clean /proc /sys /dev /mnt /media
+rm -rf /var/lib/machines/ascii/proc/*
+rm -rf /var/lib/machines/ascii/sys/*
+rm -rf /var/lib/machines/ascii/dev/*
+rm -rf /var/lib/machines/ascii/mnt/*
+rm -rf /var/lib/machines/ascii/media/*
 
 ## Compress custom rootfs:
 tar -cvzf rootfs.tar.gz -C /var/lib/machines/ascii .
