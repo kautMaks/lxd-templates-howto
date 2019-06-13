@@ -224,7 +224,6 @@ EOF
 
 cat <<EOF > /usr/share/python-apt/templates/Devuan.mirrors
 http://pkgmaster.devuan.org
-http://deb.devuan.org
 EOF
 
 ## Remove installed locales:
