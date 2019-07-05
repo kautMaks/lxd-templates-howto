@@ -37,13 +37,8 @@ l6:6:wait:/etc/init.d/rc 6
 # Normally not reached, but fallthrough in case of emergency.
 z6:6:respawn:/sbin/sulogin
 
-# What to do when CTRL-ALT-DEL is pressed.
-ca:12345:ctrlaltdel:/sbin/shutdown -t1 -a -r now
-
-# What to do when the power fails/returns.
-pf::powerwait:/etc/init.d/powerfail start
-pn::powerfailnow:/etc/init.d/powerfail now
-po::powerokwait:/etc/init.d/powerfail stop
+# SIGPWR needed for LXD
+pf::powerfail:/sbin/halt -dhnp
 
 # /sbin/getty invocations for the systemd-nspawn.
 # https://salsa.debian.org/debian/sysvinit/commit/19a732b6ba475e
