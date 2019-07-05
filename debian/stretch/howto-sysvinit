@@ -4,7 +4,7 @@
 rm -rf /var/lib/machines/stretch
 
 ## Bootstrap packages:
-debootstrap --arch=amd64 --variant=minbase --components=main,contrib --include=sysvinit-core,sysvinit-utils,systemd-shim,procps,apt-transport-https,ifupdown,iproute2,inetutils-ping,wget,neovim,locales,tzdata stretch /var/lib/machines/stretch http://deb.debian.org/debian
+debootstrap --arch=amd64 --variant=minbase --components=main,contrib --include=sysvinit-core,sysvinit-utils,procps,apt-transport-https,ifupdown,iproute2,inetutils-ping,wget,neovim,locales,tzdata --exclude=cgmanager stretch /var/lib/machines/stretch http://deb.debian.org/debian
 
 ## Fix inittab for systemd-nspawn:
 cat <<EOF > /var/lib/machines/stretch/etc/inittab
@@ -106,18 +106,18 @@ EOF
 find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en*' ! -name 'ru*' !  -name 'uk*' | xargs rm -r
 
 ## Use IPv4 for APT:
-cat <<EOF > /etc/apt/apt.conf.d/99-force-ipv4
+cat <<EOF > /etc/apt/apt.conf.d/99force-ipv4
 Acquire::ForceIPv4 "true";
 EOF
 
 ## Disable installation of Recommended and Suggested packages:
-cat <<EOF > /etc/apt/apt.conf.d/99-disable-auto-install
+cat <<EOF > /etc/apt/apt.conf.d/99disable-auto-install
 APT::Install-Recommends "0";
 APT::Install-Suggests "0";
 EOF
 
 ## Disable APT cache:
-cat <<EOF > /etc/apt/apt.conf.d/99-disable-cache
+cat <<EOF > /etc/apt/apt.conf.d/99disable-cache
 Dir::Cache::pkgcache "";
 Dir::Cache::srcpkgcache "";
 EOF
@@ -143,6 +143,9 @@ EOF
 
 ## Set timezone:
 ln -fs /usr/share/zoneinfo/Europe/Kiev /etc/localtime
+
+## Disable hardware clock:
+rm -v /etc/rc*.d/*hwclock.sh
 
 ## Set hostname:
 echo "stretch" > /etc/hostname
@@ -173,6 +176,9 @@ locale-gen
 
 ## Disable fsck for filesystems:
 rm /etc/rcS.d/S05checkfs.sh
+
+## Disable dmesg logs (does not work in container):
+rm -v /etc/rc*.d/*bootlogs
 
 ## Update pacakges:
 apt-get update ; apt-get -V dist-upgrade
