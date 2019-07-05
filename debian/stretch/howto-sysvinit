@@ -1,0 +1,208 @@
+# Host #
+
+## Clean destination folder:
+rm -rf /var/lib/machines/stretch
+
+## Bootstrap packages:
+debootstrap --arch=amd64 --variant=minbase --components=main,contrib --include=sysvinit-core,sysvinit-utils,systemd-shim,procps,apt-transport-https,ifupdown,iproute2,inetutils-ping,wget,neovim,locales,tzdata stretch /var/lib/machines/stretch http://deb.debian.org/debian
+
+## Fix inittab for systemd-nspawn:
+cat <<EOF > /var/lib/machines/stretch/etc/inittab
+# /etc/inittab: init(8) configuration.
+
+# The default runlevel.
+id:2:initdefault:
+
+# Boot-time system configuration/initialization script.
+# This is run first except when booting in emergency (-b) mode.
+si::sysinit:/etc/init.d/rcS
+
+# What to do in single-user mode.
+~~:S:wait:/sbin/sulogin
+
+# /etc/init.d executes the S and K scripts upon change of runlevel.
+#
+# Runlevel 0 is halt.
+# Runlevel 1 is single-user.
+# Runlevels 2-5 are multi-user.
+# Runlevel 6 is reboot.
+
+l0:0:wait:/etc/init.d/rc 0
+l1:1:wait:/etc/init.d/rc 1
+l2:2:wait:/etc/init.d/rc 2
+l3:3:wait:/etc/init.d/rc 3
+l4:4:wait:/etc/init.d/rc 4
+l5:5:wait:/etc/init.d/rc 5
+l6:6:wait:/etc/init.d/rc 6
+# Normally not reached, but fallthrough in case of emergency.
+z6:6:respawn:/sbin/sulogin
+
+# What to do when CTRL-ALT-DEL is pressed.
+ca:12345:ctrlaltdel:/sbin/shutdown -t1 -a -r now
+
+# What to do when the power fails/returns.
+pf::powerwait:/etc/init.d/powerfail start
+pn::powerfailnow:/etc/init.d/powerfail now
+po::powerokwait:/etc/init.d/powerfail stop
+
+# /sbin/getty invocations for the systemd-nspawn.
+# https://salsa.debian.org/debian/sysvinit/commit/19a732b6ba475e
+C0:2345:respawn:/sbin/getty -8 --noclear --keep-baud console 115200,38400,9600
+EOF
+
+## Change root password:
+systemd-nspawn -M stretch -D /var/lib/machines/stretch /usr/bin/passwd root
+
+## Start CT:
+systemd-nspawn -M stretch -bD /var/lib/machines/stretch
+
+# Inside CT #
+
+## Remove additional system variables:
+rm /etc/sysctl.d/10-*
+rm /usr/lib/sysctl.d/50-default.conf
+
+## Update APT source list:
+cat <<EOF > /etc/apt/sources.list
+# Default
+deb http://mirror.mirohost.net/debian/ stretch main contrib non-free
+deb-src http://mirror.mirohost.net/debian/ stretch main contrib non-free
+deb http://deb.debian.org/debian/ stretch main contrib non-free
+deb-src http://deb.debian.org/debian/ stretch main contrib non-free
+
+# Security
+deb http://mirror.mirohost.net/debian-security/ stretch/updates main contrib non-free
+deb-src http://mirror.mirohost.net/debian-security/ stretch/updates main contrib non-free
+deb http://security.debian.org/ stretch/updates main contrib non-free
+deb-src http://security.debian.org/ stretch/updates main contrib non-free
+EOF
+
+## Exclude docs from package install:
+cat <<EOF > /etc/dpkg/dpkg.cfg.d/01_nodoc
+path-exclude /usr/share/doc/*
+path-exclude /usr/share/doc-base/*
+# we need to keep copyright files for legal reasons
+path-include /usr/share/doc/*/copyright
+path-exclude /usr/share/groff/*
+path-exclude /usr/share/info/*
+path-exclude /usr/share/man/*
+path-include /usr/share/man/man*
+path-exclude /usr/share/lintian/*
+path-exclude /usr/share/linda/*
+EOF
+
+## Remove installed docs:
+find /usr/share/doc -depth -type f ! -name copyright | xargs rm || true
+find /usr/share/doc -empty | xargs rmdir || true
+find /usr/share/man -type d ! -name "man*" | xargs rm -rf || true
+rm -rf /usr/share/groff /usr/share/info /usr/share/lintian /usr/share/linda /usr/share/doc-base
+
+## Exclude locales:
+cat <<EOF > /etc/dpkg/dpkg.cfg.d/02_nolocales
+path-exclude /usr/share/locale/*
+path-include /usr/share/locale/en*
+path-include /usr/share/locale/ru*
+path-include /usr/share/locale/uk*
+EOF
+
+## Remove installed locales:
+find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en*' ! -name 'ru*' !  -name 'uk*' | xargs rm -r
+
+## Use IPv4 for APT:
+cat <<EOF > /etc/apt/apt.conf.d/99-force-ipv4
+Acquire::ForceIPv4 "true";
+EOF
+
+## Disable installation of Recommended and Suggested packages:
+cat <<EOF > /etc/apt/apt.conf.d/99-disable-auto-install
+APT::Install-Recommends "0";
+APT::Install-Suggests "0";
+EOF
+
+## Disable APT cache:
+cat <<EOF > /etc/apt/apt.conf.d/99-disable-cache
+Dir::Cache::pkgcache "";
+Dir::Cache::srcpkgcache "";
+EOF
+
+## Set timezone:
+ln -fs /usr/share/zoneinfo/Europe/Kiev /etc/localtime
+
+## Set hostname:
+echo "stretch" > /etc/hostname
+
+cat <<EOF > /etc/hosts
+127.0.0.1 localhost
+127.0.1.1 stretch
+
+# The following lines are desirable for IPv6 capable hosts
+::1     ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+EOF
+
+## Configure locales:
+cat <<EOF > /etc/locale.gen
+en_US.UTF-8 UTF-8
+ru_RU.UTF-8 UTF-8
+ru_UA.UTF-8 UTF-8
+uk_UA.UTF-8 UTF-8
+EOF
+
+## Generate locales:
+ln -s /etc/locale.alias /usr/share/locale/locale.alias
+locale-gen
+
+## Update pacakges:
+apt-get update ; apt-get -V dist-upgrade
+
+## Clean cache:
+find /var/cache -maxdepth 1 -mindepth 1 | xargs rm -rf
+
+## Clean logs:
+find /var/log -maxdepth 1 -mindepth 1 | xargs rm -rf
+
+## Clean root:
+find /root -maxdepth 1 -mindepth 1 ! -name '.bashrc' ! -name '.profile' | xargs rm -rf
+
+## Poweroff:
+poweroff
+
+# Host #
+
+## Post setup clean:
+rm -rf /var/lib/machines/stretch/debootstrap
+rm -rf /var/lib/machines/stretch/root/.bash_history
+
+## Compress custom rootfs:
+tar -cvzf stretch.tar.gz -C /var/lib/machines/stretch .
+
+## Create metadata file for LXD:
+### To get current date in Unix time, use `date +%s` command
+cat <<EOF > metadata.yaml
+architecture: "x86_64"
+creation_date: 1558963812
+properties:
+architecture: "x86_64"
+description: "Debian Stretch minified version"
+os: "debian"
+release: "stretch"
+EOF
+
+## Create metadata tarball:
+tar -cvzf metadata.tar.gz metadata.yaml
+
+## Import LXD image to image store:
+lxc image import metadata.tar.gz stretch.tar.gz --alias stretch-slim
+
+## Start LXD CT from new template:
+lxc launch stretch-slim stretch
+lxc exec stretch bash
+
+## Start using systemd-nspawn with random UID:GID shift:
+systemd-nspawn --machine=stretch --boot --private-users=pick --private-users-chown --register=true --directory=/var/lib/machines/stretch
+
+## Start using systemd-nspawn with custom UID(multiples of 2^16) shift:
+systemd-nspawn --machine=stretch --boot --private-users=131072 --private-users-chown --register=true --directory=/var/lib/machines/stretch
