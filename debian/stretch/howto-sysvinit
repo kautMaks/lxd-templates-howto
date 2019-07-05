@@ -37,8 +37,10 @@ l6:6:wait:/etc/init.d/rc 6
 # Normally not reached, but fallthrough in case of emergency.
 z6:6:respawn:/sbin/sulogin
 
-# SIGPWR needed for LXD
-pf::powerfail:/sbin/halt -dhnp
+# What to do when the power fails/returns. (LXD)
+pf::powerwait:/sbin/halt -dhnp
+pn::powerfailnow:/sbin/halt -dhnp
+po::powerokwait:/sbin/halt -dhnp
 
 # /sbin/getty invocations for the systemd-nspawn.
 # https://salsa.debian.org/debian/sysvinit/commit/19a732b6ba475e
@@ -123,7 +125,19 @@ EOF
 ## Disable systemd installation:
 cat <<EOF > /etc/apt/preferences.d/systemd
 Package: systemd
-Pin: origin ""
+Pin: release o=Debian
+Pin-Priority: -1
+
+Package: systemd-sysv
+Pin: release o=Debian
+Pin-Priority: -1
+
+Package: systemd:i386
+Pin: release o=Debian
+Pin-Priority: -1
+
+Package: systemd-sysv:i386
+Pin: release o=Debian
 Pin-Priority: -1
 EOF
 
