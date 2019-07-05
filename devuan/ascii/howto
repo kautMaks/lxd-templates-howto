@@ -229,6 +229,23 @@ EOF
 ## Remove installed locales:
 find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en*' ! -name 'ru*' !  -name 'uk*' | xargs rm -r
 
+## Use IPv4 for APT:
+cat <<EOF > /etc/apt/apt.conf.d/99-force-ipv4
+Acquire::ForceIPv4 "true";
+EOF
+
+## Disable installation of Recommended and Suggested packages:
+cat <<EOF > /etc/apt/apt.conf.d/99-disable-auto-install
+APT::Install-Recommends "0";
+APT::Install-Suggests "0";
+EOF
+
+## Disable APT cache:
+cat <<EOF > /etc/apt/apt.conf.d/99-disable-cache
+Dir::Cache::pkgcache "";
+Dir::Cache::srcpkgcache "";
+EOF
+
 ## Set timezone:
 cp -vf /usr/share/zoneinfo/Europe/Kiev /etc/localtime
 echo Europe/Kiev | tee /etc/timezone
