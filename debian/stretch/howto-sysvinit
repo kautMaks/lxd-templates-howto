@@ -125,6 +125,13 @@ Dir::Cache::pkgcache "";
 Dir::Cache::srcpkgcache "";
 EOF
 
+## Disable systemd installation:
+cat <<EOF > /etc/apt/preferences.d/systemd
+Package: systemd
+Pin: origin ""
+Pin-Priority: -1
+EOF
+
 ## Set timezone:
 ln -fs /usr/share/zoneinfo/Europe/Kiev /etc/localtime
 
