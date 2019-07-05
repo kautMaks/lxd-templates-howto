@@ -116,6 +116,21 @@ EOF
 ## Generate locales:
 locale-gen
 
+## Remove unneeded essential packages:
+# dpkg-query --show --showformat='${Package} ${Essential}\n' | grep -iP "yes$"
+dpkg --force-remove-essential --remove e2fslibs e2fsprogs
+dpkg --force-remove-essential --purge e2fslibs e2fsprogs
+
+## Disable unneeded essential packages installation:
+cat <<EOF > /etc/apt/preferences.d/essential
+Package: e2fslibs
+Pin: origin ""
+Pin-Priority: -1
+Package: e2fsprogs
+Pin: origin ""
+Pin-Priority: -1
+EOF
+
 ## Update pacakges:
 apt-get update ; apt-get -V dist-upgrade
 
@@ -144,7 +159,7 @@ tar -cvzf rootfs.tar.gz -C /var/lib/machines/bionic .
 ### To get current date in Unix time, use `date +%s` command
 cat <<EOF > metadata.yaml
 architecture: "x86_64"
-creation_date: 1549553023 
+creation_date: 1549553023
 properties:
 architecture: "x86_64"
 description: "Ubuntu Bionic minified version"
