@@ -171,22 +171,8 @@ EOF
 ln -s /etc/locale.alias /usr/share/locale/locale.alias
 locale-gen
 
-## Remove unneeded essential packages:
-# dpkg-query --show --showformat='${Package} ${Essential}\n' | grep -iP "yes$"
-dpkg --force-remove-essential --remove e2fslibs e2fsprogs
-dpkg --force-remove-essential --purge e2fslibs e2fsprogs
-
-## Disable unneeded essential packages installation:
-cat <<EOF > /etc/apt/preferences.d/essential
-Package: e2fslibs
-Pin: origin ""
-Pin-Priority: -1
-Package: e2fsprogs
-Pin: origin ""
-Pin-Priority: -1
-EOF
-
-apt-mark hold e2fslibs e2fsprogs
+## Disable fsck for filesystems:
+rm /etc/rcS.d/S05checkfs.sh
 
 ## Update pacakges:
 apt-get update ; apt-get -V dist-upgrade
