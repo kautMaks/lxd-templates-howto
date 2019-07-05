@@ -10,7 +10,7 @@ wget -O /usr/share/debootstrap/scripts/ascii https://git.devuan.org/devuan-packa
 sed -i 's/devuan_required="devuan-keyring devuan-baseconf sysvinit-core"/devuan_required="devuan-keyring devuan-baseconf openrc"/' /usr/share/debootstrap/scripts/ascii
 
 ## Bootstrap packages:
-debootstrap --arch=amd64 --variant=minbase --components=main,contrib --include=udev,dbus,apt-transport-https,ifupdown,iproute2,inetutils-ping,wget,neovim,locales,tzdata,man-db,manpages ascii /var/lib/machines/ascii http://pkgmaster.devuan.org/merged/
+debootstrap --arch=amd64 --variant=minbase --components=main,contrib --include=udev,dbus,apt-transport-https,ifupdown,iproute2,inetutils-ping,wget,neovim,locales,tzdata ascii /var/lib/machines/ascii http://pkgmaster.devuan.org/merged/
 
 ## Change root password:
 chroot /var/lib/machines/ascii /usr/bin/passwd root

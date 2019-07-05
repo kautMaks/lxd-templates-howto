@@ -4,7 +4,7 @@
 rm -rf /var/lib/machines/bionic
 
 ## Bootstrap packages:
-debootstrap --arch=amd64 --variant=minbase --components=main,universe --include=systemd-sysv,udev,dbus,apt-transport-https,netplan.io,iproute2,inetutils-ping,wget,neovim,locales,tzdata,man-db,manpages bionic /var/lib/machines/bionic http://ua.archive.ubuntu.com/ubuntu/
+debootstrap --arch=amd64 --variant=minbase --components=main,universe --include=systemd-sysv,udev,dbus,apt-transport-https,netplan.io,iproute2,inetutils-ping,wget,neovim,locales,tzdata bionic /var/lib/machines/bionic http://ua.archive.ubuntu.com/ubuntu/
 
 ## Change root password:
 systemd-nspawn -M bionic -D /var/lib/machines/bionic /usr/bin/passwd root
