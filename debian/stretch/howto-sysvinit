@@ -172,6 +172,8 @@ Pin: origin ""
 Pin-Priority: -1
 EOF
 
+apt-mark hold e2fslibs e2fsprogs
+
 ## Update pacakges:
 apt-get update ; apt-get -V dist-upgrade
 
