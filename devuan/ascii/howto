@@ -10,7 +10,7 @@ wget -O /usr/share/debootstrap/scripts/ascii https://git.devuan.org/devuan-packa
 sed -i 's/devuan_required="devuan-keyring devuan-baseconf sysvinit-core"/devuan_required="devuan-keyring devuan-baseconf openrc"/' /usr/share/debootstrap/scripts/ascii
 
 ## Bootstrap packages:
-debootstrap --arch=amd64 --variant=minbase --components=main,contrib --include=udev,dbus,apt-transport-https,ifupdown,iproute2,inetutils-ping,wget,neovim,locales,tzdata,man-db,dialog,apt-utils ascii /var/lib/machines/ascii http://pkgmaster.devuan.org/merged/
+debootstrap --arch=amd64 --variant=minbase --components=main,contrib --include=udev,dbus,apt-transport-https,ifupdown,iproute2,inetutils-ping,wget,neovim,locales,tzdata,man-db,manpages,dialog,apt-utils,gettext,less,groff ascii /var/lib/machines/ascii http://pkgmaster.devuan.org/merged/
 
 ## Change root password:
 chroot /var/lib/machines/ascii /usr/bin/passwd root
@@ -19,6 +19,16 @@ chroot /var/lib/machines/ascii /usr/bin/passwd root
 chroot /var/lib/machines/ascii
 
 # Inside CT #
+
+## Exclude systemctl from package install:
+cat <<EOF > /etc/dpkg/dpkg.cfg.d/01_sysctl
+path-exclude /etc/sysctl.d/*.conf
+path-exclude /usr/lib/sysctl.d/*.conf
+EOF
+
+## Remove additional system variables:
+rm /etc/sysctl.d/10-*
+rm /usr/lib/sysctl.d/50-default.conf
 
 ## Update APT source list:
 cat <<EOF > /etc/apt/sources.list
@@ -34,7 +44,6 @@ path-exclude /usr/share/doc/*
 path-exclude /usr/share/doc-base/*
 # we need to keep copyright files for legal reasons
 path-include /usr/share/doc/*/copyright
-path-exclude /usr/share/groff/*
 path-exclude /usr/share/info/*
 path-exclude /usr/share/man/*
 path-include /usr/share/man/man*
@@ -46,7 +55,7 @@ EOF
 find /usr/share/doc -depth -type f ! -name copyright | xargs rm || true
 find /usr/share/doc -empty | xargs rmdir || true
 find /usr/share/man -type d ! -name "man*" | xargs rm -rf || true
-rm -rf /usr/share/groff /usr/share/info /usr/share/lintian /usr/share/linda /usr/share/doc-base
+rm -rf /usr/share/info /usr/share/lintian /usr/share/linda /usr/share/doc-base
 
 ## Exclude locales:
 cat <<EOF > /etc/dpkg/dpkg.cfg.d/02_nolocales
