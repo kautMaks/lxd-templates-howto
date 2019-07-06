@@ -4,7 +4,7 @@
 rm -rf /var/lib/machines/stretch
 
 ## Bootstrap packages:
-debootstrap --arch=amd64 --variant=minbase --components=main,contrib --include=sysvinit-core,sysvinit-utils,procps,apt-transport-https,ifupdown,iproute2,inetutils-ping,wget,neovim,locales,tzdata,man-db,dialog,apt-utils --exclude=cgmanager stretch /var/lib/machines/stretch http://deb.debian.org/debian
+debootstrap --arch=amd64 --variant=minbase --components=main,contrib --include=sysvinit-core,sysvinit-utils,procps,apt-transport-https,ifupdown,iproute2,inetutils-ping,wget,neovim,locales,tzdata,man-db,dialog,apt-utils,gettext --exclude=cgmanager stretch /var/lib/machines/stretch http://deb.debian.org/debian
 
 ## Fix inittab for systemd-nspawn:
 cat <<EOF > /var/lib/machines/stretch/etc/inittab
@@ -158,6 +158,10 @@ ln -fs /usr/share/zoneinfo/Europe/Kiev /etc/localtime
 
 ## Disable hardware clock:
 rm -v /etc/rc*.d/*hwclock.sh
+
+## Sysvinit tweaks:
+sed -i 's/#HWCLOCKACCESS=yes/HWCLOCKACCESS=no/g' /etc/default/hwclock
+sed -i 's/#FSCKFIX=no/FSCKFIX=no/g' /etc/default/rcS
 
 ## Set hostname:
 echo "stretch" > /etc/hostname
