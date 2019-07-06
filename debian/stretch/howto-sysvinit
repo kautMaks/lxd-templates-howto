@@ -4,7 +4,7 @@
 rm -rf /var/lib/machines/stretch
 
 ## Bootstrap packages:
-debootstrap --arch=amd64 --variant=minbase --components=main,contrib --include=sysvinit-core,sysvinit-utils,procps,apt-transport-https,ifupdown,iproute2,inetutils-ping,wget,neovim,locales,tzdata --exclude=cgmanager stretch /var/lib/machines/stretch http://deb.debian.org/debian
+debootstrap --arch=amd64 --variant=minbase --components=main,contrib --include=sysvinit-core,sysvinit-utils,procps,apt-transport-https,ifupdown,iproute2,inetutils-ping,wget,neovim,locales,tzdata,man-db,dialog,apt-utils --exclude=cgmanager stretch /var/lib/machines/stretch http://deb.debian.org/debian
 
 ## Fix inittab for systemd-nspawn:
 cat <<EOF > /var/lib/machines/stretch/etc/inittab
@@ -140,6 +140,18 @@ Package: systemd-sysv:i386
 Pin: release o=Debian
 Pin-Priority: -1
 EOF
+
+## Exclude systemd from package install:
+cat <<EOF > /etc/dpkg/dpkg.cfg.d/99_systemd
+path-exclude /etc/systemd/*
+path-exclude /lib/systemd/*
+path-exclude /var/lib/systemd/*
+EOF
+
+## Clean systemd config files:
+find /etc/systemd -mindepth 1 -maxdepth 1 | xargs rm -rf
+find /lib/systemd -mindepth 1 -maxdepth 1 | xargs rm -rf
+find /var/lib/systemd -mindepth 1 -maxdepth 1 | xargs rm -rf
 
 ## Set timezone:
 ln -fs /usr/share/zoneinfo/Europe/Kiev /etc/localtime

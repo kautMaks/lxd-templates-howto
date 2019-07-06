@@ -4,7 +4,7 @@
 rm -rf /var/lib/machines/stretch
 
 ## Bootstrap packages:
-debootstrap --arch=amd64 --variant=minbase --components=main,contrib --include=systemd-sysv,udev,dbus,apt-transport-https,ifupdown,iproute2,inetutils-ping,wget,neovim,locales,tzdata stretch /var/lib/machines/stretch http://deb.debian.org/debian
+debootstrap --arch=amd64 --variant=minbase --components=main,contrib --include=systemd-sysv,udev,dbus,apt-transport-https,ifupdown,iproute2,inetutils-ping,wget,neovim,locales,tzdata,man-db,dialog,apt-utils stretch /var/lib/machines/stretch http://deb.debian.org/debian
 
 ## Change root password:
 systemd-nspawn -M stretch -D /var/lib/machines/stretch /usr/bin/passwd root
