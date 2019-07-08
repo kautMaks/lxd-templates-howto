@@ -1,4 +1,4 @@
-# Build rootfs image:
+# Build rootfs image (github.com/lxc/distrobuilder):
 #   distrobuilder build-dir debian.yaml rootfs
 # Pack for LXD:
 #   distrobuilder pack-lxd debian.yaml rootfs
@@ -23,6 +23,8 @@ source:
   keys:
     - 0x126C0D24BD8A2942CC7DF8AC7638D0442B90D010
     - 0xA1BD8E9D78F7FE5C3E65D8AF8B48AD6246925553
+    - 0x6D33866EDD8FFA41C0143AEDDCC9EFBF77E11517
+    - 0x80D15823B7FD1561F9F7BCDDDC30D7C23CBBABEE
   variant: minbase
   apt_sources: |-
     deb http://deb.debian.org/debian {{ image.release }} main contrib
@@ -102,8 +104,8 @@ files:
  - path: /etc/dpkg/dpkg.cfg.d/01_sysctl
    generator: dump
    content: |-
-     path-exclude /etc/sysctl.d/*.conf
-     path-exclude /usr/lib/sysctl.d/*.conf
+     path-exclude /etc/sysctl.d/*
+     path-exclude /usr/lib/sysctl.d/*
 
  - path: /etc/dpkg/dpkg.cfg.d/01_nodoc
    generator: dump
@@ -293,6 +295,7 @@ actions:
     releases:
       - jessie
       - stretch
+      - buster
 
   - trigger: post-packages
     action: |-
@@ -300,12 +303,13 @@ actions:
       set -eux
 
       # Remove additional system variables
-      rm -fv /etc/sysctl.d/10-*.conf
-      rm -fv /usr/lib/sysctl.d/50-*.conf
+      rm -fv /etc/sysctl.d/*
+      rm -fv /usr/lib/sysctl.d/*
 
     releases:
       - jessie
       - stretch
+      - buster
 
   - trigger: post-packages
     action: |-
@@ -328,6 +332,7 @@ actions:
     releases:
       - jessie
       - stretch
+      - buster
 
   - trigger: post-packages
     action: |-
@@ -359,6 +364,7 @@ actions:
     releases:
       - jessie
       - stretch
+      - buster
 
 mappings:
   architecture_map: debian
