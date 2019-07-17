@@ -897,12 +897,6 @@ files:
      APT::Install-Recommends "0";
      APT::Install-Suggests "0";
 
- - path: /etc/apt/apt.conf.d/99disable-cache
-   generator: dump
-   content: |-
-     Dir::Cache::pkgcache "";
-     Dir::Cache::srcpkgcache "";
-
  - path: /etc/apt/preferences.d/systemd
    generator: dump
    content: |-
@@ -970,6 +964,11 @@ files:
      # https://salsa.debian.org/debian/sysvinit/commit/19a732b6ba475e
      C0:2345:respawn:/sbin/getty -8 --noclear --keep-baud console 115200,38400,9600
 
+ - path: /var/spool/cron/crontabs/root
+   generator: dump
+   content: |-
+     0 3 * * * apt-get clean >/dev/null 2>&1
+
 packages:
   manager: apt
   update: true
@@ -979,6 +978,7 @@ packages:
     - packages:
         - apt-transport-https
         - apt-utils
+        - cron
         - dialog
         - gettext
         - ifupdown
