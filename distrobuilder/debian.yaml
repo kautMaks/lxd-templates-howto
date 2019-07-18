@@ -1133,7 +1133,7 @@ actions:
       find /root -maxdepth 1 -mindepth 1 ! -name '.bashrc' ! -name '.profile' -exec rm -vrf {} +
 
       # https://jpetazzo.github.io/2013/10/06/policy-rc-d-do-not-start-services-automatically/
-      rm -vf /usr/sbin/policy-rc.d
+      # rm -vf /usr/sbin/policy-rc.d
 
     releases:
       - jessie
