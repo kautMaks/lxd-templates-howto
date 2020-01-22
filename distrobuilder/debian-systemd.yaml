@@ -162,6 +162,18 @@ files:
        export LC_ALL="en_US.UTF-8"
      fi
 
+ # lxc exec buster -- bash -l
+ - path: /root/.profile
+   generator: dump
+   content: |-
+     # ~/.profile: executed by Bourne-compatible login shells.
+
+     if [ "$BASH" ]; then
+       if [ -f ~/.bashrc ]; then
+         . ~/.bashrc
+       fi
+     fi
+
 packages:
   manager: apt
   update: true
