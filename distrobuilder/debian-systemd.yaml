@@ -118,6 +118,8 @@ files:
      path-exclude /usr/share/info/*
      path-exclude /usr/share/lintian/*
      path-exclude /usr/share/linda/*
+     path-exclude /usr/share/man/*
+     path-include /usr/share/man/man*
 
  - path: /etc/dpkg/dpkg.cfg.d/02_nolocales
    generator: dump
@@ -314,6 +316,9 @@ actions:
 
       # Remove unused locales
       find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en*' -exec rm -vrf {} +
+
+      # Remove unused man (locales)
+      find /usr/share/man -type d ! -name "man*" -exec rm -vrf {} +
 
       # Remove additional system variables
       rm -fv /etc/sysctl.d/*
