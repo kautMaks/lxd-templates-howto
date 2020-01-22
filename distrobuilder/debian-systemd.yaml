@@ -1,0 +1,333 @@
+# Build rootfs image (github.com/lxc/distrobuilder):
+#   distrobuilder build-dir debian-systemd.yaml rootfs
+# Pack for LXD:
+#   distrobuilder pack-lxd debian-systemd.yaml rootfs
+# Use rootfs image in LXD:
+#   lxc image import lxd.tar.xz rootfs.squashfs --alias buster-slim
+#   lxc launch buster-slim buster
+#   lxc exec buster bash
+# Use rootfs in systemd-nspawn (for tests only!):
+#   systemd-nspawn -M buster -D rootfs passwd root
+#   systemd-nspawn -M buster -bD rootfs
+
+image:
+  distribution: "debian"
+  release: buster
+  description: Debian {{ image.release }} minimal image
+  architecture: amd64
+
+source:
+  downloader: debootstrap
+  url: http://deb.debian.org/debian
+  keyserver: keyserver.ubuntu.com
+  keys:
+    - 0x126C0D24BD8A2942CC7DF8AC7638D0442B90D010
+    - 0xA1BD8E9D78F7FE5C3E65D8AF8B48AD6246925553
+    - 0x6D33866EDD8FFA41C0143AEDDCC9EFBF77E11517
+    - 0x80D15823B7FD1561F9F7BCDDDC30D7C23CBBABEE
+  variant: minbase
+  apt_sources: |-
+    deb [arch={{ image.architecture }}] http://deb.debian.org/debian {{ image.release }} main contrib
+    deb [arch={{ image.architecture }}] http://security.debian.org/debian-security {{ image.release }}/updates main contrib
+
+environment:
+  clear_defaults: false
+  variables:
+    - key: "DEBIAN_FRONTEND"
+      value: "noninteractive"
+
+targets:
+  lxc:
+    create-message: |-
+      You just created a {{ image.description }} container.
+
+      To enable SSH, run: apt install openssh-server
+      No default root or user password are set by LXC.
+
+    config:
+      - type: all
+        before: 5
+        content: |-
+          lxc.include = LXC_TEMPLATE_CONFIG/debian.common.conf
+
+      - type: user
+        before: 5
+        content: |-
+          lxc.include = LXC_TEMPLATE_CONFIG/debian.userns.conf
+
+      - type: all
+        after: 4
+        content: |-
+          lxc.include = LXC_TEMPLATE_CONFIG/common.conf
+
+      - type: user
+        after: 4
+        content: |-
+          lxc.include = LXC_TEMPLATE_CONFIG/userns.conf
+
+      - type: all
+        content: |-
+          lxc.arch = {{ image.architecture_personality }}
+
+files:
+ - path: /etc/hostname
+   generator: hostname
+
+ - path: /etc/hosts
+   generator: hosts
+
+ - path: /etc/resolvconf/resolv.conf.d/original
+   generator: remove
+
+ - path: /etc/resolvconf/resolv.conf.d/tail
+   generator: remove
+
+ - path: /etc/machine-id
+   generator: remove
+
+ - path: /debootstrap
+   generator: remove
+
+ - path: /root/.bash_history
+   generator: remove
+
+ - path: /etc/network/interfaces
+   generator: dump
+   content: |-
+     # This file describes the network interfaces available on your system
+     # and how to activate them. For more information, see interfaces(5).
+
+     # The loopback network interface
+     auto lo
+     iface lo inet loopback
+
+     source /etc/network/interfaces.d/*.cfg
+
+ - path: /etc/dpkg/dpkg.cfg.d/01_sysctl
+   generator: dump
+   content: |-
+     path-exclude /etc/sysctl.d/*.conf
+     path-exclude /usr/lib/sysctl.d/*.conf
+
+ - path: /etc/dpkg/dpkg.cfg.d/01_nodoc
+   generator: dump
+   content: |-
+     path-exclude /usr/share/doc/*
+     path-exclude /usr/share/doc-base/*
+     path-include /usr/share/doc/*/copyright
+     path-exclude /usr/share/info/*
+     path-exclude /usr/share/lintian/*
+     path-exclude /usr/share/linda/*
+
+ - path: /etc/dpkg/dpkg.cfg.d/02_nolocales
+   generator: dump
+   content: |-
+     path-exclude /usr/share/locale/*
+     path-include /usr/share/locale/en*
+
+ - path: /etc/apt/apt.conf.d/99force-ipv4
+   generator: dump
+   content: |-
+     Acquire::ForceIPv4 "true";
+
+ - path: /etc/apt/apt.conf.d/99disable-auto-install
+   generator: dump
+   content: |-
+     APT::Install-Recommends "0";
+     APT::Install-Suggests "0";
+
+ - path: /var/spool/cron/crontabs/root
+   generator: dump
+   content: |-
+     SHELL=/bin/bash
+     PATH=/etc:/bin:/sbin:/usr/bin:/usr/sbin
+     LANG=en_US.UTF8
+     LC_ALL=en_US.UTF-8
+     0 3 * * * apt-get clean >/dev/null 2>&1
+
+ - path: /etc/resolv.conf
+   generator: dump
+   content: |-
+     nameserver 8.8.8.8 1.1.1.1
+
+ - path: /etc/profile.d/ct.sh
+   generator: dump
+   content: |-
+     if [ "$SHLVL" == "1" ] && [ "$USER" == "root" ] && [ "$LOGNAME" == "root" ]; then
+       export PS1="\[\e[1;31m\][CT] \[\e[1;36m\]\u\[\e[0;97m\]@\[\e[1;36m\]\H \[\e[0;92m\]\w \[\e[0;93m\]\\$ \[\e[0m\]"
+       export TERM=xterm
+       export EDITOR="nano"
+       export PAGER="less"
+       export LANG="en_US.UTF-8"
+       export LC_ALL="en_US.UTF-8"
+     fi
+
+packages:
+  manager: apt
+  update: true
+  cleanup: true
+
+  sets:
+    - packages:
+      - apt-transport-https
+      - apt-utils
+      - cron
+      - dbus
+      - dialog
+      - gettext
+      - ifupdown
+      - inetutils-ping
+      - iproute2
+      - less
+      - locales
+      - man-db
+      - manpages
+      - nano
+      - net-tools
+      - netbase
+#      - openssh-client
+      - procps
+      - systemd
+      - systemd-sysv
+      - tzdata
+      - udev
+      - wget
+      action: install
+
+    - packages:
+      - cgmanager
+      - exim4-base
+      - exim4-config
+      - exim4-daemon-light
+      - mailutils
+      - mailutils-common
+      - mariadb-common
+      - mysql-common
+      action: remove
+
+  repositories:
+    - name: sources.list
+      url: |-
+        deb [arch={{ image.architecture }}] http://deb.debian.org/debian {{ image.release }} main contrib
+        deb [arch={{ image.architecture }}] http://security.debian.org/debian-security {{ image.release }}/updates main contrib
+
+actions:
+
+  - trigger: post-packages
+    action: |-
+      #!/bin/sh
+      set -ux
+
+      # Set timezone
+      ln -vfs /usr/share/zoneinfo/Europe/Kiev /etc/localtime
+      timedatectl set-timezone Europe/Kiev
+
+      # Disable Systemd units
+      systemctl --force mask apparmor.service
+      systemctl --force mask auditd.service
+      systemctl --force mask connman.service
+      systemctl --force mask cryptsetup-pre.target
+      systemctl --force mask cryptsetup.target
+      systemctl --force mask display-manager.service
+      systemctl --force mask fstrim.service
+      systemctl --force mask fstrim.timer
+      systemctl --force mask graphical.target
+      systemctl --force mask ifupdown-pre.service
+      systemctl --force mask ifupdown-wait-online.service
+      systemctl --force mask motd-news.service
+      systemctl --force mask motd-news.timer
+      systemctl --force mask networking.service
+      systemctl --force mask NetworkManager.service
+      systemctl --force mask ondemand.service
+      systemctl --force mask plymouth-quit-wait.service
+      systemctl --force mask plymouth-start.service
+      systemctl --force mask swap.target
+      systemctl --force mask sys-kernel-config.mount
+      systemctl --force mask syslog.service
+      systemctl --force mask systemd-fsck-root.service
+      systemctl --force mask systemd-fsckd.service
+      systemctl --force mask systemd-networkd-wait-online.service
+      systemctl --force mask systemd-networkd.service
+      systemctl --force mask systemd-networkd.socket
+      systemctl --force mask systemd-resolved.service
+      systemctl --force mask systemd-sysusers.service
+      systemctl --force mask systemd-udevd.service
+      systemctl --force mask systemd-update-done.service
+      systemctl --force mask systemd-vconsole-setup.service
+
+  - trigger: post-packages
+    action: |-
+      #!/bin/sh
+      set -eux
+
+      # Make sure the locale is built and functional
+      sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/g' /etc/locale.gen
+      sed -i 's/#en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/g' /etc/locale.gen
+
+      ln -vfs /etc/locale.alias /usr/share/locale/locale.alias
+
+      locale-gen en_US.UTF-8 UTF-8
+      update-locale LANG=en_US.UTF-8
+
+  - trigger: post-packages
+    action: |-
+      #!/bin/sh
+      set -eux
+
+      # Sysvinit tweaks
+      sed -i 's/#HWCLOCKACCESS=yes/HWCLOCKACCESS=no/g' /etc/default/hwclock
+
+      # Disable hardware clock
+      find /etc/ -type l -name *hwclock.sh -print -delete
+
+      # Disable dmesg logs (does not work in container)
+      find /etc/ -type l -name *bootlogs -print -delete
+
+      # Disable fsck for filesystems
+      find /etc/ -type l -name *checkfs.sh -print -delete
+
+  - trigger: post-packages
+    action: |-
+      #!/bin/sh
+      set -eux
+
+      dpkg --get-selections | awk '$2 == "deinstall" {system("dpkg --purge " $1)}'
+      apt-get autoremove -y --purge
+      apt-get clean
+
+  - trigger: post-packages
+    action: |-
+      #!/bin/sh
+      set -eux
+
+      # Remove unused locales
+      find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en*' -exec rm -vrf {} +
+
+      # Remove additional system variables
+      rm -fv /etc/sysctl.d/*
+      rm -fv /usr/lib/sysctl.d/*
+
+      # Remove installed docs
+      find /usr/share/doc -depth -type f ! -name copyright -print -delete
+      find /usr/share/doc -empty -print -delete
+      rm -vrf /usr/share/info /usr/share/lintian /usr/share/linda /usr/share/doc-base
+
+      # Clean cache
+      find /var/cache -maxdepth 1 -mindepth 1 -exec rm -vrf {} +
+
+      # Clean logs
+      find /var/log -maxdepth 1 -mindepth 1 -exec rm -vrf {} +
+
+      # Clean root
+      find /root -maxdepth 1 -mindepth 1 ! -name '.bashrc' ! -name '.profile' -exec rm -vrf {} +
+
+      # Cleanup underlying /run
+      mount -o bind / /mnt
+      rm -vrf /mnt/run/*
+      umount /mnt
+
+      # Cleanup temporary shadow paths
+      rm -vf /etc/*-
+
+mappings:
+  architecture_map: debian
