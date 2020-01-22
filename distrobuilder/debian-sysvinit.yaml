@@ -1,7 +1,7 @@
 # Build rootfs image (github.com/lxc/distrobuilder):
-#   distrobuilder build-dir debian.yaml rootfs
+#   distrobuilder build-dir debian-sysvinit.yaml rootfs
 # Pack for LXD:
-#   distrobuilder pack-lxd debian.yaml rootfs
+#   distrobuilder pack-lxd debian-sysvinit.yaml rootfs
 # Use rootfs image in LXD:
 #   lxc image import lxd.tar.xz rootfs.squashfs --alias stretch-slim
 #   lxc launch stretch-slim stretch
