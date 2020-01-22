@@ -153,7 +153,7 @@ files:
  - path: /etc/profile.d/ct.sh
    generator: dump
    content: |-
-     if [ "$SHLVL" == "1" ] && [ "$USER" == "root" ] && [ "$LOGNAME" == "root" ]; then
+     if [ "$SHLVL" == "1" ] && [ "$USER" == "root" ]; then
        export PS1="\[\e[1;31m\][CT] \[\e[1;36m\]\u\[\e[0;97m\]@\[\e[1;36m\]\H \[\e[0;92m\]\w \[\e[0;93m\]\\$ \[\e[0m\]"
        export TERM=xterm
        export EDITOR="nano"
