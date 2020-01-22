@@ -1,0 +1,191 @@
+# Host #
+
+## Clean destination folder:
+rm -rf /var/lib/machines/buster
+
+## Bootstrap packages:
+debootstrap --arch=amd64 --variant=minbase --components=main,contrib --include=systemd-sysv,udev,dbus,apt-transport-https,ifupdown,iproute2,inetutils-ping,wget,neovim,locales,tzdata,man-db,manpages,dialog,apt-utils,gettext,less buster /var/lib/machines/buster http://deb.debian.org/debian
+
+## Change root password:
+systemd-nspawn -M buster -D /var/lib/machines/buster /usr/bin/passwd root
+
+## Start CT:
+systemd-nspawn -M buster -bD /var/lib/machines/buster
+
+# Inside CT #
+
+## Disable Systemd units:
+systemctl mask apparmor.service
+systemctl mask auditd.service
+systemctl mask connman.service
+systemctl mask cryptsetup.target
+systemctl mask display-manager.service
+systemctl mask fstrim.service
+systemctl mask fstrim.timer
+systemctl mask graphical.target
+systemctl mask motd-news.service
+systemctl mask motd-news.timer
+systemctl mask NetworkManager.service
+systemctl mask ondemand.service
+systemctl mask plymouth-quit-wait.service
+systemctl mask plymouth-start.service
+systemctl mask sys-kernel-config.mount
+systemctl mask syslog.service
+systemctl mask systemd-fsck-root.service
+systemctl mask systemd-fsckd.service
+systemctl mask systemd-sysusers.service
+systemctl mask systemd-udevd.service
+systemctl mask systemd-vconsole-setup.service
+
+## Exclude systemctl from package install:
+cat <<EOF > /etc/dpkg/dpkg.cfg.d/01_sysctl
+path-exclude /etc/sysctl.d/*.conf
+path-exclude /usr/lib/sysctl.d/*.conf
+EOF
+
+## Remove additional system variables:
+rm -v /etc/sysctl.d/*
+rm -v /usr/lib/sysctl.d/*
+
+## Update APT source list:
+cat <<EOF > /etc/apt/sources.list
+# Default
+deb http://deb.debian.org/debian/ buster main contrib non-free
+deb-src http://deb.debian.org/debian/ buster main contrib non-free
+
+# Security
+deb http://security.debian.org/ buster/updates main contrib non-free
+deb-src http://security.debian.org/ buster/updates main contrib non-free
+EOF
+
+## Exclude docs from package install:
+cat <<EOF > /etc/dpkg/dpkg.cfg.d/01_nodoc
+path-exclude /usr/share/doc/*
+path-exclude /usr/share/doc-base/*
+# we need to keep copyright files for legal reasons
+path-include /usr/share/doc/*/copyright
+path-exclude /usr/share/info/*
+path-exclude /usr/share/man/*
+path-include /usr/share/man/man*
+path-exclude /usr/share/lintian/*
+path-exclude /usr/share/linda/*
+EOF
+
+## Remove installed docs:
+find /usr/share/doc -depth -type f ! -name copyright | xargs rm -v || true
+find /usr/share/doc -empty | xargs rmdir -v || true
+find /usr/share/man -type d ! -name "man*" | xargs rm -vrf || true
+rm -vrf /usr/share/info /usr/share/lintian /usr/share/linda /usr/share/doc-base
+
+## Exclude locales:
+cat <<EOF > /etc/dpkg/dpkg.cfg.d/02_nolocales
+path-exclude /usr/share/locale/*
+path-include /usr/share/locale/en*
+path-include /usr/share/locale/ru*
+path-include /usr/share/locale/uk*
+EOF
+
+## Remove installed locales:
+find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en*' ! -name 'ru*' !  -name 'uk*' | xargs rm -vr
+
+## Use IPv4 for APT:
+cat <<EOF > /etc/apt/apt.conf.d/99-force-ipv4
+Acquire::ForceIPv4 "true";
+EOF
+
+## Disable installation of Recommended and Suggested packages:
+cat <<EOF > /etc/apt/apt.conf.d/99-disable-auto-install
+APT::Install-Recommends "0";
+APT::Install-Suggests "0";
+EOF
+
+## Disable APT cache:
+cat <<EOF > /etc/apt/apt.conf.d/99-disable-cache
+Dir::Cache::pkgcache "";
+Dir::Cache::srcpkgcache "";
+EOF
+
+## Set timezone:
+timedatectl set-timezone Europe/Kiev
+
+## Set hostname:
+hostnamectl set-hostname buster
+
+## Configure locales:
+cat <<EOF > /etc/locale.gen
+en_US.UTF-8 UTF-8
+ru_RU.UTF-8 UTF-8
+ru_UA.UTF-8 UTF-8
+uk_UA.UTF-8 UTF-8
+EOF
+
+## Generate locales:
+ln -s /etc/locale.alias /usr/share/locale/locale.alias
+locale-gen
+
+## Remove unneeded essential packages:
+# dpkg-query --show --showformat='${Package} ${Essential}\n' | grep -iP "yes$"
+dpkg --force-remove-essential --remove e2fslibs e2fsprogs
+dpkg --force-remove-essential --purge e2fslibs e2fsprogs
+
+## Disable unneeded essential packages installation:
+cat <<EOF > /etc/apt/preferences.d/essential
+Package: e2fslibs
+Pin: origin ""
+Pin-Priority: -1
+Package: e2fsprogs
+Pin: origin ""
+Pin-Priority: -1
+EOF
+
+## Update pacakges:
+apt-get update ; apt-get -V dist-upgrade
+
+## Clean cache:
+find /var/cache -maxdepth 1 -mindepth 1 | xargs rm -vrf
+
+## Clean logs:
+find /var/log -maxdepth 1 -mindepth 1 | xargs rm -vrf
+
+## Clean root:
+find /root -maxdepth 1 -mindepth 1 ! -name '.bashrc' ! -name '.profile' | xargs rm -vrf
+
+## Poweroff:
+poweroff
+
+# Host #
+
+## Post setup clean:
+rm -vrf /var/lib/machines/buster/debootstrap
+rm -vrf /var/lib/machines/buster/root/.bash_history
+
+## Compress custom rootfs:
+tar -cvzf buster.tar.gz -C /var/lib/machines/buster .
+
+## Create metadata file for LXD:
+### To get current date in Unix time, use `date +%s` command
+cat <<EOF > metadata.yaml
+architecture: "x86_64"
+creation_date: 1579693157
+properties:
+architecture: "x86_64"
+description: "Debian Buster minified version"
+os: "debian"
+release: "buster"
+EOF
+
+## Create metadata tarball:
+tar -cvzf metadata.tar.gz metadata.yaml
+
+## Import LXD image to image store:
+lxc image import metadata.tar.gz buster.tar.gz --alias buster-slim
+
+## Start LXD CT from new template:
+lxc launch buster-slim buster
+lxc exec buster bash
+
+## Start using systemd-nspawn with random UID:GID shift:
+systemd-nspawn --machine=buster --boot --private-users=pick --private-users-chown --register=true --directory=/var/lib/machines/buster
+
+## Start using systemd-nspawn with custom UID(multiples of 2^16) shift:
+systemd-nspawn --machine=buster --boot --private-users=131072 --private-users-chown --register=true --directory=/var/lib/machines/buster
