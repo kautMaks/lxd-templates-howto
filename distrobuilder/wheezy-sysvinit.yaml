@@ -1,0 +1,367 @@
+# Build rootfs image (github.com/lxc/distrobuilder):
+#   distrobuilder build-dir wheezy-sysvinit.yaml rootfs
+# Pack for LXD:
+#   distrobuilder pack-lxd wheezy-sysvinit.yaml rootfs
+# Use rootfs image in LXD:
+#   lxc image import lxd.tar.xz rootfs.squashfs --alias wheezy-slim
+#   lxc launch wheezy-slim wheezy
+#   lxc exec wheezy bash
+# Use rootfs in systemd-nspawn (for tests only!):
+#   systemd-nspawn -M wheezy -D rootfs /usr/bin/passwd root
+#   systemd-nspawn -M wheezy -bD rootfs
+
+image:
+  distribution: "debian"
+  release: wheezy
+  description: Debian {{ image.release }}
+  architecture: amd64
+
+source:
+  downloader: debootstrap
+  url: http://archive.debian.org/debian
+  keyserver: keyserver.ubuntu.com
+  keys:
+    - 0x126C0D24BD8A2942CC7DF8AC7638D0442B90D010
+    - 0xA1BD8E9D78F7FE5C3E65D8AF8B48AD6246925553
+    - 0x6D33866EDD8FFA41C0143AEDDCC9EFBF77E11517
+    - 0x80D15823B7FD1561F9F7BCDDDC30D7C23CBBABEE
+  variant: minbase
+  apt_sources: |-
+    deb http://archive.debian.org/debian {{ image.release }} main contrib non-free
+    deb-src http://archive.debian.org/debian {{ image.release }} main contrib non-free
+    
+    deb http://archive.debian.org/debian-security {{ image.release }}/updates main contrib non-free
+    deb-src http://archive.debian.org/debian-security {{ image.release }}/updates main contrib non-free
+
+environment:
+  clear_defaults: false
+  variables:
+    - key: "DEBIAN_FRONTEND"
+      value: "noninteractive"
+
+targets:
+  lxc:
+    create-message: |-
+      You just created a {{ image.description }} container.
+
+      To enable SSH, run: apt install openssh-server
+      No default root or user password are set by LXC.
+
+    config:
+      - type: all
+        before: 5
+        content: |-
+          lxc.include = LXC_TEMPLATE_CONFIG/debian.common.conf
+
+      - type: user
+        before: 5
+        content: |-
+          lxc.include = LXC_TEMPLATE_CONFIG/debian.userns.conf
+
+      - type: all
+        after: 4
+        content: |-
+          lxc.include = LXC_TEMPLATE_CONFIG/common.conf
+
+      - type: user
+        after: 4
+        content: |-
+          lxc.include = LXC_TEMPLATE_CONFIG/userns.conf
+
+      - type: all
+        content: |-
+          lxc.arch = {{ image.architecture_personality }}
+
+files:
+ - path: /etc/hostname
+   generator: hostname
+
+ - path: /etc/hosts
+   generator: hosts
+
+ - path: /etc/resolvconf/resolv.conf.d/original
+   generator: remove
+
+ - path: /etc/resolvconf/resolv.conf.d/tail
+   generator: remove
+
+ - path: /etc/machine-id
+   generator: remove
+
+ - path: /debootstrap
+   generator: remove
+
+ - path: /root/.bash_history
+   generator: remove
+
+ - path: /etc/network/interfaces
+   generator: dump
+   content: |-
+     # This file describes the network interfaces available on your system
+     # and how to activate them. For more information, see interfaces(5).
+
+     # The loopback network interface
+     auto lo
+     iface lo inet loopback
+
+ - path: /etc/dpkg/dpkg.cfg.d/01_sysctl
+   generator: dump
+   content: |-
+     path-exclude /etc/sysctl.d/*
+     path-exclude /usr/lib/sysctl.d/*
+
+ - path: /etc/dpkg/dpkg.cfg.d/01_nodoc
+   generator: dump
+   content: |-
+     path-exclude /usr/share/doc/*
+     path-exclude /usr/share/doc-base/*
+     path-include /usr/share/doc/*/copyright
+     path-exclude /usr/share/info/*
+
+ - path: /etc/apt/apt.conf.d/10no--check-valid-until
+   generator: dump
+   content: |-
+     Acquire::Check-Valid-Until "0";
+
+ - path: /etc/apt/apt.conf.d/99force-ipv4
+   generator: dump
+   content: |-
+     Acquire::ForceIPv4 "true";
+
+ - path: /etc/apt/apt.conf.d/99disable-auto-install
+   generator: dump
+   content: |-
+     APT::Install-Recommends "0";
+     APT::Install-Suggests "0";
+
+ - path: /etc/apt/preferences.d/systemd
+   generator: dump
+   content: |-
+     Package: systemd
+     Pin: release o=Debian
+     Pin-Priority: -1
+
+     Package: systemd-sysv
+     Pin: release o=Debian
+     Pin-Priority: -1
+
+     Package: systemd:i386
+     Pin: release o=Debian
+     Pin-Priority: -1
+
+     Package: systemd-sysv:i386
+     Pin: release o=Debian
+     Pin-Priority: -1
+
+ - path: /etc/dpkg/dpkg.cfg.d/99_systemd
+   generator: dump
+   content: |-
+     path-exclude /etc/systemd/*
+     path-exclude /lib/systemd/*
+     path-exclude /var/lib/systemd/*
+
+ - path: /etc/inittab
+   generator: dump
+   content: |-
+     # /etc/inittab: init(8) configuration.
+
+     # The default runlevel.
+     id:2:initdefault:
+
+     # Boot-time system configuration/initialization script.
+     # This is run first except when booting in emergency (-b) mode.
+     si::sysinit:/etc/init.d/rcS
+
+     # What to do in single-user mode.
+     ~~:S:wait:/sbin/sulogin
+
+     # /etc/init.d executes the S and K scripts upon change of runlevel.
+     #
+     # Runlevel 0 is halt.
+     # Runlevel 1 is single-user.
+     # Runlevels 2-5 are multi-user.
+     # Runlevel 6 is reboot.
+
+     l0:0:wait:/etc/init.d/rc 0
+     l1:1:wait:/etc/init.d/rc 1
+     l2:2:wait:/etc/init.d/rc 2
+     l3:3:wait:/etc/init.d/rc 3
+     l4:4:wait:/etc/init.d/rc 4
+     l5:5:wait:/etc/init.d/rc 5
+     l6:6:wait:/etc/init.d/rc 6
+     # Normally not reached, but fallthrough in case of emergency.
+     z6:6:respawn:/sbin/sulogin
+
+     # What to do when the power fails/returns. (LXD)
+     pf::powerwait:/sbin/halt -dhnp
+     pn::powerfailnow:/sbin/halt -dhnp
+     po::powerokwait:/sbin/halt -dhnp
+
+     # /sbin/getty invocations for the systemd-nspawn.
+     # https://salsa.debian.org/debian/sysvinit/commit/19a732b6ba475e
+     C0:2345:respawn:/sbin/getty -8 --noclear --keep-baud console 115200,38400,9600
+
+ - path: /var/spool/cron/crontabs/root
+   generator: dump
+   content: |-
+     0 3 * * * apt-get clean >/dev/null 2>&1
+
+packages:
+  manager: apt
+  update: true
+  cleanup: true
+
+  sets:
+    - packages:
+        - apt-transport-https
+        - apt-utils
+        - cron
+        - dialog
+        - gettext
+        - ifupdown
+        - inetutils-ping
+        - iproute
+        - less
+        - locales
+        - man-db
+        - manpages
+        - nano
+        - net-tools
+        - netbase
+        - openssh-client
+        - procps
+        - sysvinit-utils
+        - tzdata
+        - wget
+      action: install
+
+    - packages:
+        - dmsetup
+        - systemd
+        - systemd-sysv
+        - udev
+      action: remove
+
+actions:
+
+  - trigger: post-unpack
+    action: |-
+      #!/bin/sh
+      set -eux
+
+      # https://jpetazzo.github.io/2013/10/06/policy-rc-d-do-not-start-services-automatically/
+      echo exit 101 > /usr/sbin/policy-rc.d
+      chmod +x /usr/sbin/policy-rc.d
+
+  - trigger: post-packages
+    action: |-
+      #!/bin/sh
+      set -eux
+
+      # Set timezone:
+      ln -vfs /usr/share/zoneinfo/Europe/Kiev /etc/localtime
+
+  - trigger: post-packages
+    action: |-
+      #!/bin/sh
+      set -eux
+
+      # Make sure the locale is built and functional
+      sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/g' /etc/locale.gen
+      sed -i 's/#en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/g' /etc/locale.gen
+      ln -vfs /etc/locale.alias /usr/share/locale/locale.alias
+      locale-gen en_US.UTF-8 UTF-8
+      update-locale LANG=en_US.UTF-8
+
+  - trigger: post-packages
+    action: |-
+      #!/bin/sh
+      set -eux
+
+      # Cleanup underlying /run
+      mount -o bind / /mnt
+      rm -vrf /mnt/run/*
+      umount /mnt
+
+      # Cleanup temporary shadow paths
+      rm -vf /etc/*-
+
+  - trigger: post-packages
+    action: |-
+      #!/bin/sh
+      set -eux
+
+      # apt-get -qq update
+      # apt-get -y dist-upgrade
+      # apt-get remove systemd systemd-shim systemd-sysv udev dmsetup cgmanager -y --purge
+      # apt-get autoremove -y --purge
+      apt-get clean
+
+    releases:
+      - wheezy
+
+  - trigger: post-packages
+    action: |-
+      #!/bin/sh
+      set -eux
+
+      # Remove additional system variables
+      rm -fv /etc/sysctl.d/*
+      rm -fv /usr/lib/sysctl.d/*
+
+    releases:
+      - wheezy
+
+  - trigger: post-packages
+    action: |-
+      #!/bin/sh
+      set -eux
+
+      # Sysvinit tweaks
+      sed -i 's/#HWCLOCKACCESS=yes/HWCLOCKACCESS=no/g' /etc/default/hwclock
+      sed -i 's/#FSCKFIX=no/FSCKFIX=no/g' /etc/default/rcS
+
+      # Disable hardware clock
+      find /etc/ -type l -name *hwclock.sh -print -delete
+
+      # Disable dmesg logs (does not work in container)
+      find /etc/ -type l -name *bootlogs -print -delete
+
+      # Disable fsck for filesystems
+      find /etc/ -type l -name *checkfs.sh -print -delete
+
+    releases:
+      - wheezy
+
+  - trigger: post-packages
+    action: |-
+      #!/bin/sh
+      set -eux
+
+      # Remove installed docs
+      find /usr/share/doc -depth -type f ! -name copyright -print -delete
+      find /usr/share/doc -empty -print -delete
+      rm -vrf /usr/share/info /usr/share/doc-base
+
+      # Clean systemd config files
+      rm -vrf /etc/systemd/*
+      rm -vrf /lib/systemd/*
+      rm -vrf /var/lib/systemd/*
+
+      # Clean cache
+      rm -vrf /var/cache/*
+
+      # Clean logs
+      rm -vrf /var/log/*
+
+      # Clean root
+      find /root -maxdepth 1 -mindepth 1 ! -name '.bashrc' ! -name '.profile' -exec rm -vrf {} +
+
+      # https://jpetazzo.github.io/2013/10/06/policy-rc-d-do-not-start-services-automatically/
+      # rm -vf /usr/sbin/policy-rc.d
+
+    releases:
+      - wheezy
+
+mappings:
+  architecture_map: debian
